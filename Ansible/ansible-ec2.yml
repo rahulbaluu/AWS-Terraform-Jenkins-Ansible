@@ -6,7 +6,6 @@
    tags: provisioning
 
    vars:
-     ansible_python_interpreter: /usr/bin/python3
      keypair: demo
      instance_type: t2.micro
      image: ami-0ee23bfc74a881de5
@@ -17,10 +16,6 @@
      security_group: ec2-security-group
    
    tasks:
-     - name: Sample task
-      debug:
-        msg: "Using Python 3 interpreter with boto3 installed"
-        
      - name: Create a security group
        local_action: 
          module: ec2_group
