@@ -43,7 +43,7 @@ resource "aws_security_group" "example" {
   }
 
   tags   = {
-    Name = "jenkins server"
+    Name = "jenkins server security group"
   }
 }
 
