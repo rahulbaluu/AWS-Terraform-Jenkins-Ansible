@@ -8,7 +8,7 @@
    vars:
      keypair: demo
      instance_type: t2.micro
-     image: ami-0223dd77f27a872bb
+     image: ami-0b2f6494ff0b07a0e
      wait: yes
      group: webserver
      count: 1
