@@ -107,3 +107,4 @@ resource "null_resource" "name" {
 output "website_url" {
   value     = join ("", ["http://", aws_instance.ec2_instance.public_dns, ":", "8080" ])
 }
+#If get error while applying "terraform apply", Please try "terraform apply" secound time code will execute without error.
