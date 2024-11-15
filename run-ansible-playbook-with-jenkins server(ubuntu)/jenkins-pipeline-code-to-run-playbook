@@ -24,7 +24,7 @@ pipeline {
         }
         stage('Playbook Execution') {
             steps {
-                ansiblePlaybook playbook: 'ansible-ec2.yml'
+                ansiblePlaybook playbook: 'run-ansible-playbook-with-jenkins server(ubuntu)/create-ec2.yml'
             }
         }
     }
