@@ -44,4 +44,4 @@ sudo systemctl start jenkins
 # Show initial Jenkins admin password for setup
 sudo cat /var/lib/jenkins/secrets/initialAdminPassword
 
-#sudo systemctl status jenkins  /The code can't stop execution
+#sudo systemctl status jenkins  /The code can't stop execution once exececuted 

@@ -12,7 +12,7 @@ resource "aws_default_subnet" "default_az1" {
   availability_zone = data.aws_availability_zones.available.names[0]
 
   tags = {
-    Name = "Default subnet for us-west-2"
+    Name = "Default subnet for eu-west-2"
   }
 }
 
@@ -85,15 +85,15 @@ resource "null_resource" "name" {
   }
   # copy the install_jenkins.sh file from your computer to the ec2 instance 
   provisioner "file" {
-    source      = "ec2requirementinstallation.sh"
-    destination = "/tmp/ec2requirementinstallation.sh"
+    source      = "linux-ec2-requirementinstallation.sh"
+    destination = "/tmp/linux-ec2-requirementinstallation.sh"
   }
 
   # set permissions and run the install_jenkins.sh file
   provisioner "remote-exec" {
     inline = [
-        "sudo chmod +x /tmp/ec2requirementinstallation.sh",
-        "sh /tmp/ec2requirementinstallation.sh",
+        "sudo chmod +x /tmp/linux-ec2-requirementinstallation.sh",
+        "sh /tmp/linux-ec2-requirementinstallation.sh",
     ]
   }
 
