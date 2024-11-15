@@ -1,0 +1,32 @@
+pipeline {
+    agent any
+
+    stages {
+        stage('Verify') {
+            steps {
+                script {
+                    checkout scmGit(branches: [[name: '*/main']], extensions: [], userRemoteConfigs: [[url: 'https://github.com/rahulbaluu/Terraform-and-Ansible.git']])
+                }
+            }
+        }
+        stage('Install Dependencies') {
+            steps {
+                sh '''
+                    # Upgrade pip
+                    pip install --upgrade pip
+                    
+                    # Install or upgrade compatible dependencies
+                    pip install "urllib3>=1.25.4,<1.27" boto3 botocore --upgrade
+                    ansible-galaxy collection install amazon.aws
+
+                '''
+            }
+        }
+        stage('Playbook Execution') {
+            steps {
+                ansiblePlaybook playbook: 'ansible-ec2.yml'
+            }
+        }
+    }
+}
+
