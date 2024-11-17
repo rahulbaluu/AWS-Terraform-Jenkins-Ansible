@@ -41,6 +41,17 @@ sudo apt install git -y
 sudo systemctl enable jenkins
 sudo systemctl start jenkins
 
+# Maven installation
+sudo yum install -y wget
+wget https://downloads.apache.org/maven/maven-3/3.9.9/binaries/apache-maven-3.9.9-bin.tar.gz
+sudo tar -xvzf apache-maven-3.9.9-bin.tar.gz -C /opt
+sudo ln -s /opt/apache-maven-3.9.9 /opt/maven
+echo 'export PATH=$PATH:/opt/maven/bin' | sudo tee -a /etc/profile
+source /etc/profile
+
+# Verify Maven installation
+mvn -version
+
 # Show initial Jenkins admin password for setup
 sudo cat /var/lib/jenkins/secrets/initialAdminPassword
 
