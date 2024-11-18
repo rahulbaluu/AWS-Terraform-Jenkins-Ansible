@@ -1,0 +1,81 @@
+pipeline {
+    agent any
+    tools {
+      maven 'Maven'
+    }
+    environment {
+      DOCKER_TAG = getVersion()
+    }
+    
+    stages {
+        stage('Repo check') {
+            steps {
+                script {
+                    try {
+                        git branch: 'main', url: 'https://github.com/rahulbaluu/AWS-Terraform-Jenkins-Ansible.git'
+                    } catch (Exception e) {
+                        error "Git repository checkout failed: ${e.getMessage()}"
+                    }
+                }
+            }
+        }
+        stage('Maven Build') {
+            steps {
+                dir('Jenkins-Ansible-Docker') {
+                    script {
+                        try {
+                            sh 'mvn clean package'
+                        } catch (Exception e) {
+                            error "Maven build failed: ${e.getMessage()}"
+                        }
+                    }
+                }
+            }
+        }
+        stage('Docker Build') {
+            steps {
+                dir('Jenkins-Ansible-Docker') {
+                    script {
+                        try {
+                            sh "docker build -t rahulbbalu98/sampleansibledocker:${DOCKER_TAG} -f Dockerfile ."
+                        } catch (Exception e) {
+                            error "Docker build failed: ${e.getMessage()}"
+                        }
+                    }
+                }
+            }
+        }
+        stage('DockerHub Push') {
+            steps {
+                withCredentials([string(credentialsId: 'docker-hub', variable: 'DOCKER_PASSWORD')]) {
+                    script {
+                        try {
+                            sh "docker login -u rahulbbalu98 -p ${DOCKER_PASSWORD}"
+                            sh "docker push rahulbbalu98/sampleansibledocker:${DOCKER_TAG}"
+                        } catch (Exception e) {
+                            error "DockerHub push failed: ${e.getMessage()}"
+                        }
+                    }
+                }
+            }
+        }
+        stage('Docker Deploy') {
+            steps {
+                dir('Jenkins-Ansible-Docker') {
+                    script {
+                        try {
+                            ansiblePlaybook credentialsId: 'dev-server', disableHostKeyChecking: true, extras: "-e DOCKER_TAG=${DOCKER_TAG}", installation: 'ansible', inventory: 'dev.inv', playbook: 'docker-deploy.yml'
+                        } catch (Exception e) {
+                            error "Ansible Docker deploy failed: ${e.getMessage()}"
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+def getVersion() {
+    def commitHash = sh returnStdout: true, script: 'git rev-parse --short HEAD'
+    return commitHash.trim()
+}
