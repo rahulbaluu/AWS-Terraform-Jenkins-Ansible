@@ -20,7 +20,7 @@
     </dependencies>
 
     <build>
-        <finalName>dockeransible</finalName>
+        <finalName>docker-jenkins-ansible-project</finalName>
         <plugins>
             <!-- Maven WAR Plugin -->
             <plugin>
