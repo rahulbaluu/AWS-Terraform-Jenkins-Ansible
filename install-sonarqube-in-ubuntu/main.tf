@@ -18,15 +18,8 @@ resource "aws_default_subnet" "default_az1" {
 
 resource "aws_security_group" "example" {
   name        = "aws_security_group"
-  description = "acess to port 22, 8080 and 9000"
+  description = "acess to port 22 and 9000"
   vpc_id      = aws_default_vpc.default.id
-
-  ingress {
-    cidr_blocks = ["0.0.0.0/0"]
-    from_port   = 8080
-    to_port     = 8080
-    protocol    = "tcp"
-  }
 
   ingress {
     cidr_blocks = ["0.0.0.0/0"]
@@ -111,11 +104,7 @@ resource "null_resource" "name" {
 }
 
 # print the url of the jenkins server
-output "jenkins_url" {
-  value     = join ("", ["http://", aws_instance.ec2_instance.public_dns, ":", "8080" ])
-}
-
-output "sonarqube_url" {
-  value     = join ("", ["http://", aws_instance.ec2_instance.public_ip, ":", "9000"])
+output "website_url" {
+  value     = join ("", ["http://", aws_instance.ec2_instance.public_ip, ":", "9000" ])
 }
 #If get error while applying "terraform apply", Please try "terraform apply" secound time code will execute without error.

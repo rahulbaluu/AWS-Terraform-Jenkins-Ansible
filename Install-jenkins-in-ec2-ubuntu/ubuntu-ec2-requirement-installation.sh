@@ -21,7 +21,7 @@ sudo apt update && sudo apt upgrade -y
 # Install Java 17 (required for SonarQube and Jenkins)
 info "Installing Java 17..."
 sudo apt install -y openjdk-17-jdk
-java --version || { error "Java installation failed"; exit 1; }
+java -version || { error "Java installation failed"; exit 1; }
 
 # Install Jenkins
 info "Setting up Jenkins repository..."
@@ -32,14 +32,23 @@ sudo apt update
 info "Installing Jenkins..."
 sudo apt install -y jenkins
 
+# Enable, start, and verify Jenkins
+info "Enabling and starting Jenkins service..."
+sudo systemctl enable jenkins
+sudo systemctl start jenkins || {
+  error "Jenkins service failed to start. Check system logs with 'sudo journalctl -xe'."
+  exit 1
+}
+sudo systemctl status jenkins --no-pager
+
 # Install Terraform
 info "Installing Terraform..."
-sudo apt-get install -y gnupg software-properties-common
+sudo apt install -y gnupg software-properties-common
 wget -qO- https://apt.releases.hashicorp.com/gpg | gpg --dearmor | sudo tee /usr/share/keyrings/hashicorp-archive-keyring.gpg > /dev/null
 echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" \
   | sudo tee /etc/apt/sources.list.d/hashicorp.list
-sudo apt-get update
-sudo apt-get install -y terraform
+sudo apt update
+sudo apt install -y terraform
 terraform --version || { error "Terraform installation failed"; exit 1; }
 
 # Install Ansible
@@ -52,59 +61,59 @@ ansible --version || { error "Ansible installation failed"; exit 1; }
 info "Installing Git..."
 sudo apt install -y git
 
-# Enable, start, and verify Jenkins
-info "Enabling and starting Jenkins service..."
-sudo systemctl enable jenkins
-sudo systemctl start jenkins
-sudo systemctl status jenkins --no-pager || { error "Jenkins service failed to start"; exit 1; }
-
 # Install Maven
 info "Installing Maven version $MAVEN_VERSION..."
-sudo apt install -y wget
 wget -q https://downloads.apache.org/maven/maven-3/${MAVEN_VERSION}/binaries/apache-maven-${MAVEN_VERSION}-bin.tar.gz
 sudo tar -xvzf apache-maven-${MAVEN_VERSION}-bin.tar.gz -C /opt
-sudo ln -s /opt/apache-maven-${MAVEN_VERSION} /opt/maven
-echo 'export PATH=$PATH:/opt/maven/bin' | sudo tee -a /etc/profile
-source /etc/profile
+
+# Force create the symbolic link, overwriting if it already exists
+sudo ln -sf /opt/apache-maven-${MAVEN_VERSION} /opt/maven
+
+# Update PATH for Maven
+echo 'export PATH=$PATH:/opt/maven/bin' | sudo tee /etc/profile.d/maven.sh
+sudo chmod +x /etc/profile.d/maven.sh
+source /etc/profile.d/maven.sh
+
+# Clean up
 rm apache-maven-${MAVEN_VERSION}-bin.tar.gz
+
+# Verify Maven installation
 mvn -version || { error "Maven installation failed"; exit 1; }
 
-# Install SonarQube
+
+# Install required packages for SonarQube
 info "Installing SonarQube version $SONARQUBE_VERSION..."
 sudo apt install -y unzip
+
+# Create a user for SonarQube (if it doesn't exist)
+if ! id "sonar" &>/dev/null; then
+    sudo useradd -m -d /opt/sonarqube sonar
+fi
+
+# Download and install SonarQube
 wget https://binaries.sonarsource.com/Distribution/sonarqube/sonarqube-${SONARQUBE_VERSION}.zip
 sudo unzip sonarqube-${SONARQUBE_VERSION}.zip -d /opt
+
+# Remove any existing SonarQube directory and move the extracted directory
 sudo mv /opt/sonarqube-${SONARQUBE_VERSION} /opt/sonarqube
-sudo adduser --system --group --no-create-home sonarqube
-sudo chown -R sonarqube:sonarqube /opt/sonarqube
-sudo chmod -R 755 /opt/sonarqube
 
-# Configure SonarQube as a service
-info "Configuring SonarQube as a service..."
-sudo tee /etc/systemd/system/sonarqube.service > /dev/null <<EOL
-[Unit]
-Description=SonarQube service
-After=network.target
+# Set proper permissions for SonarQube directory
+sudo chown -R sonar:sonar /opt/sonarqube
 
-[Service]
-Type=simple
-ExecStart=/opt/sonarqube/bin/linux-x86-64/sonar.sh start
-ExecStop=/opt/sonarqube/bin/linux-x86-64/sonar.sh stop
-User=sonarqube
-Group=sonarqube
-Restart=always
-LimitNOFILE=65536
+# Switch to the sonar user and start SonarQube
+sudo su - sonar -c "/opt/sonarqube/sonarqube-${SONARQUBE_VERSION}/bin/linux-x86-64/sonar.sh start" || {
+  error "SonarQube failed to start. Check logs in /opt/sonarqube/logs."
+  exit 1
+}
 
-[Install]
-WantedBy=multi-user.target
-EOL
+# Output SonarQube status (as sonar user)
+sudo su - sonar -c "/opt/sonarqube/sonarqube-${SONARQUBE_VERSION}/bin/linux-x86-64/sonar.sh status"
 
-# Start and enable SonarQube
-info "Enabling and starting SonarQube service..."
-sudo systemctl daemon-reload
-sudo systemctl enable sonarqube
-sudo systemctl start sonarqube
-sudo systemctl status sonarqube --no-pager || { error "SonarQube service failed to start"; exit 1; }
+# Clean up downloaded files
+rm -f sonarqube-${SONARQUBE_VERSION}.zip
+
+# Output SonarQube status
+echo "SonarQube is now running."
 
 # Show Jenkins initial password
 info "Displaying initial Jenkins admin password..."
