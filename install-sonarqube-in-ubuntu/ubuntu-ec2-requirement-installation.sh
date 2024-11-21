@@ -30,8 +30,6 @@ sudo mv /opt/sonarqube-${SONARQUBE_VERSION} /opt/sonarqube
 # Set proper permissions for SonarQube directory
 sudo chown -R sonar:sonar /opt/sonarqube
 
-sudo apt install -y openjdk-17-jdk-headless
-
 # Switch to the sonar user and start SonarQube
 sudo su - sonar -c "/opt/sonarqube/sonarqube-${SONARQUBE_VERSION}/bin/linux-x86-64/sonar.sh start"
 
