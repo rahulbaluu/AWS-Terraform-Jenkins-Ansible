@@ -1,0 +1,1 @@
+scp -r ./AWS-Terraform-SonarQube-Docker ec2-user@18.132.2.102:~/website/
