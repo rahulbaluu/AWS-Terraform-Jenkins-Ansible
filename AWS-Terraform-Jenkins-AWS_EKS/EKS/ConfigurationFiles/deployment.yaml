@@ -1,0 +1,19 @@
+apiVersion: apps/v1  # Specifies that this is a Deployment resource, which is part of the apps API group.
+kind: Deployment  # The type of resource being created is a Deployment.
+metadata:
+  name: nginx  # The name of the deployment resource.
+spec:
+  selector:
+    matchLabels:
+      app: nginx  # This selector ensures that the deployment only targets pods with the label 'app: nginx'.
+  replicas: 1  # Number of replicas (pods) that should be running. In this case, it will create one pod.
+  template:  # This describes the pod template used for creating the pods.
+    metadata:
+      labels:
+        app: nginx  # Each pod created by this deployment will have the label 'app: nginx'.
+    spec:
+      containers:
+      - name: nginx  # The name of the container.
+        image: nginx  # The Docker image used for the container (in this case, the official 'nginx' image).
+        ports:
+        - containerPort: 80  # The container will expose port 80.
