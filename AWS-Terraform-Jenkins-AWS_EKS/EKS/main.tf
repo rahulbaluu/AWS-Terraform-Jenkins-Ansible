@@ -262,6 +262,10 @@ resource "aws_iam_role_policy_attachment" "eks_worker_eks_cni_policy_attachment"
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy"  # Corrected ARN
 }
 
+resource "aws_iam_role_policy_attachment" "eks_worker_ecr_read_only" {
+  role       = aws_iam_role.eks_worker_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
+}
 
 # Security Group for the Node Group
 resource "aws_security_group" "eks_security_group" {
@@ -274,6 +278,13 @@ resource "aws_security_group" "eks_security_group" {
     to_port     = 22
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]  # Limit this to your IP range or a bastion host
+  }
+  
+  ingress {
+    from_port   = 443  # EKS API server port
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
   }
 
   ingress {
