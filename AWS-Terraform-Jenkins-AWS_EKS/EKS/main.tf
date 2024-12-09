@@ -1,13 +1,41 @@
+# Define the VPC CIDR block variable
+variable "vpc_cidr" {
+  description = "CIDR block for the VPC"
+  type        = string
+  default     = "10.0.0.0/16"  # Adjust as needed
+}
+
+# Define the public and private subnets CIDR blocks
+variable "public_subnets" {
+  description = "List of CIDR blocks for public subnets"
+  type        = list(string)
+  default     = ["10.0.1.0/24"]  # Update as needed
+}
+
+variable "private_subnets" {
+  description = "List of CIDR blocks for private subnets"
+  type        = list(string)
+  default     = ["10.0.2.0/24"]  # Update as needed
+}
+
+variable "instance_type" {
+  description = "EC2 instance type for worker nodes"
+  type        = string
+  default     = "t3.medium"  # Adjust as needed
+}
+
+# VPC Resource
 resource "aws_vpc" "myvpc" {
-  cidr_block = var.vpc-cidr
-  
+  cidr_block = var.vpc_cidr
+
   tags = {
-    Name = "eks"
+    Name        = "eks"
     Environment = "Dev"
     "kubernetes.io/cluster/my-eks-cluster" = "shared"
   }
 }
 
+# Availability Zones Data Source
 data "aws_availability_zones" "available" {
   state = "available"
 }
@@ -17,54 +45,59 @@ resource "aws_internet_gateway" "my_igw" {
   vpc_id = aws_vpc.myvpc.id
 
   tags = {
-    Name = "My-EKS-Internet-Gateway"
+    Name        = "My-EKS-Internet-Gateway"
     Environment = "Dev"
   }
 }
 
 # Create a NAT Gateway Elastic IP (EIP) for private subnet access
 resource "aws_eip" "nat_eip" {
+  vpc = true  # Ensure the EIP is allocated for VPC use
 }
 
 # Create a NAT Gateway in the public subnet
 resource "aws_nat_gateway" "nat_gw" {
   allocation_id = aws_eip.nat_eip.id
-  subnet_id     = aws_subnet.public_subnet.id  # NAT Gateway should be in a public subnet
+  subnet_id     = aws_subnet.public_subnet.id
 
   tags = {
     Name        = "My-EKS-NAT-Gateway"
     Environment = "Dev"
   }
+
+  depends_on = [
+    aws_eip.nat_eip
+  ]
 }
 
-# Public Subnet with EKS and ELB Tag
+# Public Subnet (use different AZ for the second subnet)
 resource "aws_subnet" "public_subnet" {
   vpc_id            = aws_vpc.myvpc.id
-  cidr_block        = var.public_subnets[0]  # CIDR block for the public subnet
-  availability_zone = data.aws_availability_zones.available.names[0]
+  cidr_block        = var.public_subnets[0]
+  availability_zone = data.aws_availability_zones.available.names[0]  # AZ 1
 
-  map_public_ip_on_launch = true  # Instances in the public subnet will get public IPs
+  map_public_ip_on_launch = true
 
   tags = {
     Name        = "eks-public-subnet"
     Environment = "Dev"
-    "kubernetes.io/cluster/my-eks-cluster" = "shared"  # EKS cluster tag
-    "kubernetes.io/role/elb" = "1"  # Tag for ELB resources
+    "kubernetes.io/cluster/my-eks-cluster" = "shared"
+    "kubernetes.io/role/elb" = "1"
   }
 }
 
-# Private Subnet with EKS Tag (no ELB tag for private subnets)
+# Private Subnet (use a different AZ for the private subnet)
 resource "aws_subnet" "private_subnet" {
   vpc_id            = aws_vpc.myvpc.id
-  cidr_block        = var.private_subnets[0]  # CIDR block for the private subnet
-  availability_zone = data.aws_availability_zones.available.names[0]
+  cidr_block        = var.private_subnets[0]
+  availability_zone = data.aws_availability_zones.available.names[1]  # AZ 2
 
-  map_public_ip_on_launch = false  # Instances in the private subnet will not get public IPs
+  map_public_ip_on_launch = false
 
   tags = {
     Name        = "eks-private-subnet"
     Environment = "Dev"
-    "kubernetes.io/cluster/my-eks-cluster" = "shared"  # EKS cluster tag 
+    "kubernetes.io/cluster/my-eks-cluster" = "shared"
   }
 }
 
@@ -113,7 +146,7 @@ resource "aws_route_table_association" "private_route_table_assoc" {
 # EKS Cluster
 resource "aws_eks_cluster" "my_eks" {
   name     = "my-eks-cluster"
-  version = "1.30"
+  version  = "1.30"
   role_arn = aws_iam_role.eks_cluster_role.arn
 
   vpc_config {
@@ -122,8 +155,11 @@ resource "aws_eks_cluster" "my_eks" {
       aws_subnet.private_subnet.id
     ]
   }
+
   depends_on = [
-    aws_internet_gateway.my_igw
+    aws_internet_gateway.my_igw,
+    aws_subnet.public_subnet,
+    aws_subnet.private_subnet
   ]
 
   tags = {
@@ -145,10 +181,10 @@ resource "aws_iam_role" "eks_cluster_role" {
           Service = "eks.amazonaws.com"
         }
         Effect = "Allow"
-        Sid    = ""
       }
     ]
   })
+
   tags = {
     Name        = "eks-cluster-role"
     Environment = "Dev"
@@ -196,7 +232,6 @@ resource "aws_iam_role" "eks_worker_role" {
           Service = "ec2.amazonaws.com"
         }
         Effect = "Allow"
-        Sid    = ""
       }
     ]
   })
@@ -215,7 +250,7 @@ resource "aws_iam_role_policy_attachment" "eks_worker_policy_attachment" {
 
 resource "aws_iam_role_policy_attachment" "eks_worker_eks_cni_policy_attachment" {
   role       = aws_iam_role.eks_worker_role.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSCNI"
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy"  # Corrected ARN
 }
 
 resource "aws_iam_role_policy_attachment" "eks_worker_autoscaling_policy_attachment" {
@@ -230,16 +265,23 @@ resource "aws_security_group" "eks_security_group" {
   vpc_id      = aws_vpc.myvpc.id
 
   ingress {
-    from_port   = 0
-    to_port     = 65535
+    from_port   = 22  # Allow SSH (or any other ports your nodes need)
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]  # Limit this to your IP range or a bastion host
+  }
+
+  ingress {
+    from_port   = 80  # HTTP access
+    to_port     = 80
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
 
   egress {
     from_port   = 0
-    to_port     = 65535
-    protocol    = "-1"
+    to_port     = 0
+    protocol    = "-1"  # Allow all outbound traffic
     cidr_blocks = ["0.0.0.0/0"]
   }
 
