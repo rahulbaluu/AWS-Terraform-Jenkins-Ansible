@@ -44,32 +44,63 @@ resource "aws_nat_gateway" "nat_gw" {
   ]
 }
 
-# Public Subnet (use different AZ for the second subnet)
+# Public Subnet in AZ1
 resource "aws_subnet" "public_subnet" {
   vpc_id            = aws_vpc.myvpc.id
   cidr_block        = var.public_subnets[0]
-  availability_zone = data.aws_availability_zones.available.names[1]  # AZ 1
+  availability_zone = data.aws_availability_zones.available.names[0]  # AZ 1
 
   map_public_ip_on_launch = true
 
   tags = {
-    Name        = "eks-public-subnet"
+    Name        = "eks-public-subnet-1"
     Environment = "Dev"
     "kubernetes.io/cluster/my-eks-cluster" = "shared"
     "kubernetes.io/role/elb" = "1"
   }
 }
 
-# Private Subnet (use a different AZ for the private subnet)
+# Public Subnet in AZ2
+resource "aws_subnet" "public_subnet_2" {
+  vpc_id            = aws_vpc.myvpc.id
+  cidr_block        = var.public_subnets[1]
+  availability_zone = data.aws_availability_zones.available.names[1]  # AZ 2
+
+  map_public_ip_on_launch = true
+
+  tags = {
+    Name        = "eks-public-subnet-2"
+    Environment = "Dev"
+    "kubernetes.io/cluster/my-eks-cluster" = "shared"
+    "kubernetes.io/role/elb" = "1"
+  }
+}
+
+# Private Subnet in AZ1
 resource "aws_subnet" "private_subnet" {
   vpc_id            = aws_vpc.myvpc.id
   cidr_block        = var.private_subnets[0]
+  availability_zone = data.aws_availability_zones.available.names[0]  # AZ 1
+
+  map_public_ip_on_launch = false
+
+  tags = {
+    Name        = "eks-private-subnet-1"
+    Environment = "Dev"
+    "kubernetes.io/cluster/my-eks-cluster" = "shared"
+  }
+}
+
+# Private Subnet in AZ2
+resource "aws_subnet" "private_subnet_2" {
+  vpc_id            = aws_vpc.myvpc.id
+  cidr_block        = var.private_subnets[1]
   availability_zone = data.aws_availability_zones.available.names[1]  # AZ 2
 
   map_public_ip_on_launch = false
 
   tags = {
-    Name        = "eks-private-subnet"
+    Name        = "eks-private-subnet-2"
     Environment = "Dev"
     "kubernetes.io/cluster/my-eks-cluster" = "shared"
   }
@@ -117,7 +148,6 @@ resource "aws_route_table_association" "private_route_table_assoc" {
   route_table_id = aws_route_table.private_route_table.id
 }
 
-# EKS Cluster
 resource "aws_eks_cluster" "my_eks" {
   name     = "my-eks-cluster"
   version  = "1.30"
@@ -126,14 +156,18 @@ resource "aws_eks_cluster" "my_eks" {
   vpc_config {
     subnet_ids = [
       aws_subnet.public_subnet.id,
-      aws_subnet.private_subnet.id
+      aws_subnet.public_subnet_2.id,
+      aws_subnet.private_subnet.id,
+      aws_subnet.private_subnet_2.id
     ]
   }
 
   depends_on = [
     aws_internet_gateway.my_igw,
     aws_subnet.public_subnet,
-    aws_subnet.private_subnet
+    aws_subnet.public_subnet_2,
+    aws_subnet.private_subnet,
+    aws_subnet.private_subnet_2
   ]
 
   tags = {
@@ -141,6 +175,7 @@ resource "aws_eks_cluster" "my_eks" {
     Environment = "Dev"
   }
 }
+
 
 # IAM Role for EKS Cluster
 resource "aws_iam_role" "eks_cluster_role" {
@@ -227,10 +262,6 @@ resource "aws_iam_role_policy_attachment" "eks_worker_eks_cni_policy_attachment"
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy"  # Corrected ARN
 }
 
-resource "aws_iam_role_policy_attachment" "eks_worker_autoscaling_policy_attachment" {
-  role       = aws_iam_role.eks_worker_role.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2AutoScaling"
-}
 
 # Security Group for the Node Group
 resource "aws_security_group" "eks_security_group" {
