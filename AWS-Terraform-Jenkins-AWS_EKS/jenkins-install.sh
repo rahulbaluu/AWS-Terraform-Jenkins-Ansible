@@ -49,6 +49,23 @@ terraform --version || { error "Terraform installation failed"; exit 1; }
 info "Installing Git..."
 sudo apt install -y git
 
+#Install AWS CLI v2 on Ubuntu/Debian-based EC2 Instances
+sudo apt update
+sudo apt install unzip curl -y
+curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+unzip awscliv2.zip
+sudo ./aws/install
+aws --version
+
+# Kubectl installation
+info "Installing kubectl..."
+curl -LO "https://dl.k8s.io/release/v1.27.4/bin/linux/amd64/kubectl"
+chmod +x kubectl
+sudo mv kubectl /usr/local/bin/
+
+# Verify kubectl installation
+kubectl version --client || { error "kubectl installation failed"; exit 1; }
+
 # Show Jenkins initial password
 info "Displaying initial Jenkins admin password..."
 sudo cat /var/lib/jenkins/secrets/initialAdminPassword

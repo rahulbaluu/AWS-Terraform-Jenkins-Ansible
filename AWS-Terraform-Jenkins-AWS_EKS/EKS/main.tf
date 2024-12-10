@@ -279,13 +279,6 @@ resource "aws_security_group" "eks_security_group" {
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]  # Limit this to your IP range or a bastion host
   }
-  
-  ingress {
-    from_port   = 443  # EKS API server port
-    to_port     = 443
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
 
   ingress {
     from_port   = 80  # HTTP access
