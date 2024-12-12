@@ -1,0 +1,104 @@
+pipeline {
+    agent any
+    environment {
+        AWS_ACCESS_KEY_ID = credentials('Access_key_ID')
+        AWS_SECRET_ACCESS_KEY = credentials('Secret_access_key')
+        AWS_DEFAULT_REGION = "eu-west-2"
+    }
+    parameters {
+        choice(name: 'ACTION', choices: ['apply', 'destroy'], description: 'Select Terraform action')
+    }
+    stages {
+        stage('Checkout SCM') {
+            steps {
+                script {
+                    checkout scmGit(branches: [[name: '*/main']], extensions: [], userRemoteConfigs: [[url: 'https://github.com/rahulbaluu/AWS-Terraform-Jenkins-Ansible.git']])
+                }
+            }
+        }
+
+        stage('Initializing Terraform') {
+            steps {
+                script {
+                    dir('AWS-Terraform-Jenkins-AWS_EKS/EKS') {
+                        sh 'terraform init -upgrade'
+                    }
+                }
+            }
+        }
+
+        stage('Formatting Terraform Code') {
+            steps {
+                script {
+                    dir('AWS-Terraform-Jenkins-AWS_EKS/EKS') {
+                        sh 'terraform fmt -no-color'
+                    }
+                }
+            }
+        }
+
+        stage('Validating Terraform') {
+            steps {
+                script {
+                    dir('AWS-Terraform-Jenkins-AWS_EKS/EKS') {
+                        sh 'terraform validate -no-color'
+                    }
+                }
+            }
+        }
+
+        stage('Previewing the Infra using Terraform') {
+            steps {
+                script {
+                    dir('AWS-Terraform-Jenkins-AWS_EKS/EKS') {
+                        // Plan and output to a file for easier review
+                        sh 'terraform plan -no-color -out=plan.out'
+
+                        // Optional: Show the plan as an artifact or console output
+                        sh 'terraform show plan.out'
+
+                        // Manual approval for apply
+                        input(message: "Are you sure to proceed?", ok: "Proceed")
+                    }
+                }
+            }
+        }
+
+        stage('Creating/Destroying an EKS Cluster') {
+            steps {
+                script {
+                    // Verify that the directory contains Terraform files
+                    dir('AWS-Terraform-Jenkins-AWS_EKS/EKS') {
+                        sh 'ls -alh'  // List all files in the directory to check for .tf files
+                    }
+
+                    // Perform the selected action (either apply or destroy)
+                    dir('AWS-Terraform-Jenkins-AWS_EKS/EKS') {
+                        sh "terraform ${params.ACTION} --auto-approve"  // Use params.ACTION instead of 'action'
+                    }
+                }
+            }
+        }
+
+        stage('Deploying Nginx Application') {
+            steps {
+                script {
+                    dir('AWS-Terraform-Jenkins-AWS_EKS/EKS/ConfigurationFiles') {
+                        // Check if AWS CLI is available
+                        sh 'aws --version'
+
+                        // Update kubeconfig for the EKS cluster
+                        sh 'aws eks update-kubeconfig --name my-eks-cluster'
+
+                        // Check if kubectl is configured correctly
+                        sh 'kubectl get nodes'  // This checks if kubectl can interact with the cluster
+
+                        // Apply the Nginx deployment and service files
+                        sh 'kubectl apply -f deployment.yaml'
+                        sh 'kubectl apply -f service.yaml'
+                    }
+                }
+            }
+        }
+    }
+}
